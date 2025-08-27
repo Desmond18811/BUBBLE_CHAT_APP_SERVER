@@ -68,7 +68,7 @@ export const uploadFile = async (req, res) => {
     fs.renameSync(req.file.path, newPath);
 
     // Use the full domain for fileUrl
-    const baseUrl = process.env.HOST || 'https://bubble-chat-app-server.onrender.com';
+    const baseUrl ='https://bubble-chat-app-server.onrender.com';
     const fileUrl = `${baseUrl}/Uploads/files/${year}/${month}/${day}/${newFilename}`;
 
     return res.status(200).json({
