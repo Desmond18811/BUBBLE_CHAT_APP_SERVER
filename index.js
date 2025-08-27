@@ -96,7 +96,7 @@ app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
       });
     }
 
-    const fileUrl = `https://bubble-chat-app-server.onrender.com/uploads/${req.file.filename}`;
+    const fileUrl = `/uploads/${req.file.filename}`;
 
     res.json({
       success: true,
