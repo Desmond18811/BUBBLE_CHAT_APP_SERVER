@@ -1,6 +1,6 @@
 // routes/MessagesRoutes.js
 import { Router } from "express";
-import { getMessages, uploadFile } from "../controllers/MessagesController.js";
+import { getMessages} from "../controllers/MessagesController.js";
 import { verifyToken } from "../middleware/AuthMiddleware.js";
 import multer from "multer";
 
@@ -13,7 +13,7 @@ const upload = multer({
 });
 
 messagesRoutes.post('/get-messages', verifyToken, getMessages);
-messagesRoutes.post("/upload-file", verifyToken, upload.single("file"), uploadFile);
+//messagesRoutes.post("/upload-file", verifyToken, upload.single("file"), uploadFile);
 
 export default messagesRoutes;
 
