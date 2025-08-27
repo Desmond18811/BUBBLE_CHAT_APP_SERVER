@@ -13,27 +13,22 @@ import contactRoutes from "./routes/ContactsRoutes.js";
 import setUpSocket from './socket.js';
 import messagesRoutes from './routes/MessagesRoutes.js';
 
-// Configure environment variables
 dotenv.config();
 
-// ES Modules fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
-// Initialize Express app
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const databaseURL = process.env.DATABASE_URL;
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = path.join(__dirname, 'Uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
   console.log('Created uploads directory');
 }
 
-// Multer configuration (expanded to support audio, images, videos, docs)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
@@ -45,31 +40,23 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024, // 15MB limit
+    fileSize: 15 * 1024 * 1024,
     files: 1
   },
   fileFilter: (req, file, cb) => {
     const allowedMimeTypes = [
-      // Audio
       'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/mp3', 'audio/x-m4a', 'audio/aac',
       'audio/ogg', 'audio/x-wav', 'audio/x-aiff', 'audio/x-flac',
-      // Images
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      // Videos
       'video/mp4', 'video/webm', 'video/ogg',
-      // Documents
-      'application/pdf', 'application/msword', 
+      'application/pdf', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain'
     ];
     const allowedExtensions = [
-      // Audio
       '.mp3', '.wav', '.webm', '.m4a', '.aac', '.ogg', '.flac', '.aif',
-      // Images
       '.jpg', '.jpeg', '.png', '.gif', '.webp',
-      // Videos
       '.mp4', '.webm', '.ogg',
-      // Documents
       '.pdf', '.doc', '.docx', '.txt'
     ];
 
@@ -87,7 +74,6 @@ const upload = multer({
   }
 });
 
-// CORS config
 app.use(cors({
   origin: process.env.ORIGIN || 'http://localhost:5173',
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
@@ -96,14 +82,11 @@ app.use(cors({
   exposedHeaders: ["Content-Disposition"]
 }));
 
-// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use('/uploads', express.static(uploadDir));
-app.use("/uploads/files", express.static("/uploads/files"))
 
-// Upload endpoint (changed to match constants: /api/messages/upload-file)
 app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
@@ -113,7 +96,7 @@ app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
       });
     }
 
-    const fileUrl = 'https://bubble-chat-app-server.onrender.com/uploads/`${req.file.filename}`';
+    const fileUrl = `https://bubble-chat-app-server.onrender.com/uploads/${req.file.filename}`;
 
     res.json({
       success: true,
@@ -133,7 +116,6 @@ app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
   }
 });
 
-// Helper: format bytes
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -143,15 +125,13 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-// MongoDB Connection
 mongoose.connect(databaseURL)
-.then(() => console.log('🟢 Connected to Database'))
-.catch((err) => {
-  console.error('❌ Database connection error:', err);
-  process.exit(1);
-});
+    .then(() => console.log('🟢 Connected to Database'))
+    .catch((err) => {
+      console.error('❌ Database connection error:', err);
+      process.exit(1);
+    });
 
-// Health check
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   const uptime = process.uptime();
@@ -170,12 +150,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/contacts', contactRoutes);
-app.use('/api/messages', messagesRoutes)
+app.use('/api/messages', messagesRoutes);
 
-// FIXED 404 Handler for Express v5 (regex-safe)
 app.all(/^\/api\//, (req, res) => {
   res.status(404).json({
     success: false,
@@ -185,7 +163,6 @@ app.all(/^\/api\//, (req, res) => {
   });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', {
     message: err.message,
@@ -211,14 +188,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server started on http://localhost:${PORT}`);
   console.log(`📁 Upload directory: ${uploadDir}`);
   console.log(`🌐 CORS allowed origin: ${process.env.ORIGIN || 'http://localhost:5173'}`);
 });
 
-// Socket.io setup
 try {
   const io = setUpSocket(server);
   console.log('🟢 Socket.io server initialized');
@@ -234,11 +209,8 @@ try {
   process.exit(1);
 }
 
-// Process signals
 process.on('unhandledRejection', (err) => {
   console.error('⚠️ Unhandled Rejection:', err);
-  // Removed server.close and process.exit to prevent crashes in development
-  // In production, you might want to restart or handle differently
 });
 
 process.on('SIGTERM', () => {
@@ -260,4 +232,3 @@ process.on('SIGINT', () => {
     });
   });
 });
-
