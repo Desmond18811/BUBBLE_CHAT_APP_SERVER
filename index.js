@@ -3,11 +3,13 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import path from 'path';
 import multer from 'multer';
-import fs from 'fs';
+import { createRequire } from 'module';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import stream from 'stream';
 import authRoutes from "./routes/AuthRoutes.js";
 import contactRoutes from "./routes/ContactsRoutes.js";
 import setUpSocket from './socket.js';
@@ -23,19 +25,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const databaseURL = process.env.DATABASE_URL;
 
-const uploadDir = path.join(__dirname, 'Uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('Created uploads directory');
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true
 });
+
+// Create a memory storage for Multer
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -85,9 +84,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use('/uploads', express.static(uploadDir));
 
-app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
+// Upload endpoint using Cloudinary
+app.post('/api/messages/upload-file', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -96,15 +95,53 @@ app.post('/api/messages/upload-file', upload.single('file'), (req, res) => {
       });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Determine resource type based on MIME type
+    let resourceType = 'auto';
+    if (req.file.mimetype.startsWith('image/')) {
+      resourceType = 'image';
+    } else if (req.file.mimetype.startsWith('video/')) {
+      resourceType = 'video';
+    } else if (req.file.mimetype.startsWith('audio/')) {
+      resourceType = 'video'; // Cloudinary treats audio as video
+    }
+
+    // Create a promise-based upload function
+    const uploadStream = () => {
+      return new Promise((resolve, reject) => {
+        const cloudinaryUploadStream = cloudinary.uploader.upload_stream(
+            {
+              resource_type: resourceType,
+              folder: 'bubble-chat-app',
+              use_filename: true,
+              unique_filename: true
+            },
+            (error, result) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve(result);
+              }
+            }
+        );
+
+        // Create a buffer stream and pipe to Cloudinary
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(req.file.buffer);
+        bufferStream.pipe(cloudinaryUploadStream);
+      });
+    };
+
+    // Upload the file
+    const result = await uploadStream();
 
     res.json({
       success: true,
-      fileUrl,
-      filename: req.file.filename,
+      fileUrl: result.secure_url,
+      filename: req.file.originalname,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      duration: req.body.duration || null
+      duration: req.body.duration || null,
+      publicId: result.public_id
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -190,7 +227,7 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server started on http://localhost:${PORT}`);
-  console.log(`📁 Upload directory: ${uploadDir}`);
+  console.log(`☁️  Using Cloudinary for file storage`);
   console.log(`🌐 CORS allowed origin: ${process.env.ORIGIN || 'http://localhost:5173'}`);
 });
 
