@@ -8,8 +8,8 @@ import path from 'path';
 import multer from 'multer';
 import { createRequire } from 'module';
 import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import stream from 'stream';
+import fs from 'fs';
 import authRoutes from "./routes/AuthRoutes.js";
 import contactRoutes from "./routes/ContactsRoutes.js";
 import setUpSocket from './socket.js';
@@ -32,6 +32,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true
 });
+
+// Local uploads directory for migration
+const localUploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(localUploadsDir)) {
+  fs.mkdirSync(localUploadsDir, { recursive: true });
+}
 
 // Create a memory storage for Multer
 const storage = multer.memoryStorage();
@@ -84,6 +90,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Serve local uploads for migration period
+app.use('/local-uploads', express.static(localUploadsDir));
 
 // Upload endpoint using Cloudinary
 app.post('/api/messages/upload-file', upload.single('file'), async (req, res) => {
@@ -148,6 +157,97 @@ app.post('/api/messages/upload-file', upload.single('file'), async (req, res) =>
     res.status(500).json({
       success: false,
       error: 'File upload failed',
+      message: error.message
+    });
+  }
+});
+
+// Migration endpoint to upload local files to Cloudinary
+app.post('/api/migrate-files', async (req, res) => {
+  try {
+    const { filePath, publicId } = req.body;
+
+    if (!filePath) {
+      return res.status(400).json({
+        success: false,
+        error: 'File path is required'
+      });
+    }
+
+    const fullPath = path.join(localUploadsDir, filePath);
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'File not found'
+      });
+    }
+
+    const uploadOptions = {
+      folder: 'bubble-chat-app/migrated',
+      use_filename: true,
+      unique_filename: false
+    };
+
+    if (publicId) {
+      uploadOptions.public_id = publicId;
+    }
+
+    const result = await cloudinary.uploader.upload(fullPath, uploadOptions);
+
+    res.json({
+      success: true,
+      fileUrl: result.secure_url,
+      publicId: result.public_id
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'File migration failed',
+      message: error.message
+    });
+  }
+});
+
+// Get list of local files for migration
+app.get('/api/local-files', (req, res) => {
+  try {
+    const findAllFiles = (dir, fileList = []) => {
+      const files = fs.readdirSync(dir);
+
+      files.forEach(file => {
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
+
+        if (stat.isDirectory()) {
+          findAllFiles(filePath, fileList);
+        } else {
+          // Store relative path for easier handling
+          const relativePath = filePath.replace(localUploadsDir + path.sep, '').replace(/\\/g, '/');
+          fileList.push({
+            path: relativePath,
+            size: stat.size,
+            mtime: stat.mtime
+          });
+        }
+      });
+
+      return fileList;
+    };
+
+    const allFiles = findAllFiles(localUploadsDir);
+
+    res.json({
+      success: true,
+      files: allFiles,
+      count: allFiles.length
+    });
+  } catch (error) {
+    console.error('Error listing local files:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list local files',
       message: error.message
     });
   }
@@ -227,7 +327,8 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server started on http://localhost:${PORT}`);
-  console.log(`☁️  Using Cloudinary for file storage`);
+  console.log(`📁 Local uploads directory: ${localUploadsDir}`);
+  console.log(`☁️  Using Cloudinary for new file storage`);
   console.log(`🌐 CORS allowed origin: ${process.env.ORIGIN || 'http://localhost:5173'}`);
 });
 
