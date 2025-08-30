@@ -118,7 +118,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Serve local uploads for migration period
-app.use('/local-uploads', express.static(localUploadsDir));
+//app.use('/local-uploads', express.static(localUploadsDir));
+app.use('/uploads', express.static(localUploadsDir));  // Instead of /local-uploads
 
 // Test endpoint to verify Cloudinary configuration
 app.get('/api/test-cloudinary', async (req, res) => {
