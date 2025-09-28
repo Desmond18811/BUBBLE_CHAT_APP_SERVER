@@ -105,12 +105,24 @@ const upload = multer({
   }
 });
 
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://bubbleappchat.netlify.app'  // Add your Netlify URL here
+];
+
 app.use(cors({
-  origin: process.env.ORIGIN || 'http://localhost:5173',
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true,
-  exposedHeaders: ["Content-Disposition"]
+    origin: (origin, callback) => {
+
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    credentials: true,
+    exposedHeaders: ["Content-Disposition"]
 }));
 
 app.use(express.json());
