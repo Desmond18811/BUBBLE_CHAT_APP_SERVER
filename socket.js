@@ -5,9 +5,10 @@ import Message from "./models/Messages.js";
 const setUpSocket = (server) => {
     const io = new SocketIoServer(server, {
         cors: {
-            origin: process.env.ORIGIN || "http://localhost:3000",
-            methods: ["GET", "POST"],
-            credentials: true,
+            origin: ['http://localhost:5173', 'https://bubbleappchat.netlify.app'],  // Allow both dev and prod
+            methods: ['GET', 'POST'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+            credentials: true
         }
     });
 
