@@ -113,7 +113,8 @@ const upload = multer({
 
 const allowedOrigins = [
     'http://localhost:5173',
-    'https://bubbleappchat.netlify.app'  // Add your Netlify URL here
+    'https://bubbleappchat.netlify.app',
+    'https://bubble-chat-app-client.vercel.app'// Add your Netlify URL here
 ];
 
 app.use(cors({
